@@ -29,3 +29,26 @@ plot(pressure)
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
 
 module 1 setting up git
+
+```{r}
+library(psych)
+library(tidyverse)
+library(dplyr)
+```
+```{r}
+describe(hsb2$prog)
+```
+```{r}
+table(hsb2$prog)
+```
+
+```{r}
+ses1 <- filter(hsb2, ses == 1)
+hist(ses1$write)
+ses2 <- filter(hsb2, ses == 2)
+hist(ses2$write)
+ses3 <- filter(hsb2, ses == 3)
+hist(ses3$write)
+```
+
+
