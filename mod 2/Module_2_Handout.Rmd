@@ -1,0 +1,125 @@
+---
+title: "Module 2 Handout - Review of Linear Regression"
+author: "Dr. B"
+output: 
+  html_notebook:
+    highlight: tango
+---
+
+# Load a Few Packages:
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(broom)
+library(skimr)
+```
+
+# Input the Food Dataset (from reading):
+```{r}
+food <- read_csv("food.csv")
+
+view(food)
+glimpse(food)
+```
+
+# Data Cleaning and Coding:
+We use three functions to help us here. The first two are found in the `dplyr` package and the third comes from `base R`.  
+\newline
+
+1. `rename` is a handy function that will change the name of any variables in your dataset. The formula is `newname = oldname`. So, in this case, we are renaming our variables to get rid of capital letters and put spaces in between the words with underscores. 
+\newline
+
+2. `mutate` is another SUPER handy function that I use all the time. It allows us to generate a new variable based on a transformation (or mutation, think X-Men!) of an existing one. In this case, I am taking the original (renamed) variable `have_garden`, and I am creating a new variable called `have_garden_fac` that is equal to the old variable, but converted to a factor (that is what the `as_factor` function does). So now, `R` recognizes the difference between "Yes" and "No" for `have_garden_factor` as actually being two different levels of a categorical variable that I can use in frequency tables, regression models, etc.  
+\newline
+
+3. `na.omit` is another handy function that should come with a warning label!  This one should be used very carefully. What this function does is remove any observation (row) in a dataset with missing data. This is similar to listwise deletion if you have talked about that in a previous stats class. We use it here because our original `food` dataset had an extra row in it that was all missing. In this case, that was just an error - this wasn't an actual response. But, if you use `na.omit` on a dataset where you do have missing data, then any observation with any missingness will be removed. The nice part is we can always look back at `food` now that we have `food.clean` and see the difference- how many observations were dropped, etc. 
+
+```{r}
+
+food.clean <- food %>%
+  rename(.,
+         food_consumption = FOODCONSUMPTION,
+         family_income = FAMILYINCOME,
+         num_children = NUMCHULDREN,
+         have_garden= HAVEGARDEN) %>%
+  mutate(.,
+         have_garden_fac = as_factor(have_garden)) %>%
+  na.omit()
+
+glimpse(food.clean)
+```
+
+# Use `skim` from the `skimr` package to get a nice summary:
+```{r}
+skim(food.clean)
+```
+
+# Start with a Simple Linear Regression: Does Income Predict Food Consumption?
+```{r}
+foodreg1 <- lm(food_consumption ~ family_income, data = food.clean)
+summary(foodreg1)
+```
+
+\newline
+The short answer to our question - YES! Family income does significantly predict food expenditures. The two are positively related with one another. For each additional dollar in income a family earns, they would be expected to spend an additional .06 (or 6 cents) on food. Relationship is highly significant (p<.001). The Adjusted R Squared for this model is .56, which means that family income by itself explains about 56% of the variation in food expenditures.
+\newline
+
+# What About Kids? Do Things Change When We Account For Them?
+```{r}
+foodreg2 <- lm(food_consumption ~ family_income + num_children, data = food.clean)
+summary(foodreg2)
+```
+
+\newline
+It looks like kids make a big difference, too! For each additional child (`num_children`), we would expect a family to spend about \$826 more per year on food. Since `family_income` is in this model, too, we can say that this relationship holds when controlling for family income. Another way to think about this: if you take two families with the same income, the family with 1 more child would be predicted to spend about \$827 more on food per year. 
+\newline
+Notice, too, that the estimate for `family_income` hasn't really changed much- it is about .05, down from .06 in our first model. And our new Adjusted R Squared value is .60, up from .56. So, adding number of kids helped us explain about 4% more of the variation in food expenditures. 
+\newline
+
+# Now - What About Families Who Have a Garden? Does That Change Things?
+```{r}
+foodreg3 <- lm(food_consumption ~ family_income + num_children + have_garden_fac, data = food.clean)
+summary(foodreg3)
+```
+
+\newline
+What about gardens? Might they change how much a family spends on food? Short answer here - no, not AFTER controlling for family income and number of kids. Sidenote: we could test if gardens are related to food expenditures by themselves just by running a simple linear regression with only `have_garden_fac` as the predictor. But here, it doesn't look like owning a garden is significantly related to food expenditures. 
+\newline
+
+# Getting Advanced - Does the Number of Children Serve as a Moderator of the Income/Food Relationship?
+```{r}
+foodreg4 <- lm(food_consumption ~ family_income + num_children + family_income:num_children, data = food.clean)
+summary(foodreg4)
+```
+
+\newline
+OK, now for the fancy stuff- buckle up! The first three models we ran assumed that our predictors were additive, and not interactive. What does this mean? The relationship between `num_children` and food expenditures is the same, regardless of how much income your family has. And likewise, the relationship between `family_income` and food is the same, regardless of how many kids you have. 
+
+\newline
+This is fine for a first step, but another hypothesis might be that these two variables INTERACT (or moderate) each other. So, the slope estimate of one is dependent on the value of the other. This is a more complex relationship between predictors. We specify an interaction with the `:` symbol as shown above. We want to include both main effects (so both variables are still in the equation), as WELL as their interaction `family_income:num_children`. If the estimate for this interaction term is signficant, then some moderation or interaction is likely happening. 
+
+\newline
+In this case, we sadly don't have enough evidence to say that interaction exists (p = .15). Power may be an issue as well - we only have 50 observations in our food dataset, and interaction effects are notoriously underpowered (meaning you usually need a much larger sample to find a true significant effect with any regularity). 
+
+\newline
+
+# Using the `stargazer` Package to Organize Your Results:
+\newline
+Last thing - let's take our results and make them pretty! The `stargazer` package is a super simple and cool way to synthesize the results of a series of regression analyses. We named our models along the way (`foodreg1, foodreg2`, etc.), so using `stargazer` to collect the results is super easy. 
+\newline
+One more fun trick - see below where I include the `out = "test.html"` option. This creates an html table called "test" wherever you specified your working directory. Why is this cool? Microsoft Word can read html tables! So you can take this fancy table, open it up right in Word, and then paste it into your paper. #Boom
+\newline
+
+```{r}
+library(stargazer)
+summary.table <- stargazer(foodreg1,
+                           foodreg2,
+                           foodreg3,
+                           foodreg4,
+                           type = "text",
+                           font.size = "normalsize",
+                           digits = 2,
+                           keep.stat = c("n", "rsq", "adj.rsq"),
+                           out = "test.html",
+                           star.cutoffs = c(.05, .01, .001))
+```
