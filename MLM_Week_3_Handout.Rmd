@@ -1,0 +1,113 @@
+---
+title: "Multilevel Modeling, Module 3: Intro to MLM and the Null Model"
+author: "Dr. Broda"
+output: html_notebook 
+---
+
+This week, we are going to use a larger version of the HSB dataset back from 1988. Same structure- students nested within schools. This is the same dataset that Garson uses in Chapter 3, so you can recreate what he has as well.
+
+# Load Some Packages to Help with the Analysis and Data Management:
+```{r, print=FALSE}
+library(tidyverse) 
+library(Hmisc) # label()
+library(lme4)
+library(lmerTest)
+
+```
+
+# Load in the Data and Use `glimpse` to Summarize the Data Structure
+```{r}
+hsb <- hsbmerged
+
+glimpse(hsb)
+```
+
+# Quick Data Cleaning and Coding Tips!
+
+## The `summary` command from `base R` is a quick and easy way to explore a new dataset.
+```{r}
+summary(hsb)
+```
+
+Summary gives you a quick, high-level summary of all the variables in a dataset. It is also really useful for your own records. You can just copy and paste into a Word file and have it for your records.
+
+Now, data cleaning and coding! We're going to learn how to apply labels to (1) variables themselves, and (2) the values within a given variable. Both are useful and a good practice for cleaning up your data.
+
+## Let's give some variables a label:
+```{r}
+label(hsb$mathach) = "Std. Math Score"
+label(hsb$sector) = "School Sector"
+
+str(hsb$sector)
+```
+
+## Let's create a factor version of `sector` and give specific values of `sector` a label:
+```{r}
+hsb.clean <- hsb %>%
+  mutate(.,
+         sector.factor = as_factor(sector),
+         female.factor = as_factor(female),
+         minority.factor = as_factor(minority))
+
+levels(hsb.clean$sector.factor) = c("Public", "Parochial")
+levels(hsb.clean$female.factor) = c("Male", "Female")
+levels(hsb.clean$minority.factor) = c("Non-Minority", "Minority")
+
+str(hsb.clean$sector.factor)
+```
+
+```{r}
+table(hsb.clean$sector.factor)
+```
+
+## Run `summary` again - notice how it handles factors...
+```{r}
+summary(hsb.clean)
+```
+
+
+# Exploring Our Outcome, Match Achievement 
+
+## Now, let's take a look at the `mathach` variable using the `describe` function from the `Hmisc` package:
+```{r}
+describe(hsb.clean$mathach)
+```
+
+```{r}
+hist(hsb.clean$mathach, 
+     main = "Distribution of Math Achievement Scores",
+     sub = "N = 7,185. Students from the High School and Beyond Survey (1988).",
+     xlab = "Standardized Math Achievement Score")
+```
+
+# Running a Null Model
+```{r}
+model.null <- lmer(mathach ~ (1|schoolid), REML = FALSE, data = hsb.clean)
+summary(model.null)
+
+```
+
+You also get AIC and BIC, two very common information criterion measures that are used to assess model fit:
+
+# Post-Estimation Task: Calculate ICC
+
+These commands are run after you an any kind of MLM. They are called post-estimation commands because they require that you have the model saved in the memory (it is the last thing you ran). If you do something else and try to run them, you will likely get an error.
+
+Here's a quick and easy way to get our friend the ICC!
+```{r}
+
+null.ICC <- 8.553/(8.553 + 39.148)
+null.ICC
+
+```
+
+# Using `lmerTest` to Evaluate Random Effects:
+```{r}
+rand(model.null)
+```
+
+# Always Interesting: Compare Our MLM to a Regular Regression
+```{r}
+model.regular <- lm(mathach ~ NULL, data = hsb.clean)
+summary(model.regular)
+```
