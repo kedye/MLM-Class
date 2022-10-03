@@ -1,0 +1,98 @@
+---
+title: "Mod 4 hw"
+output: html_document
+date: '2022-10-02'
+---
+
+```{r, print=FALSE}
+library(tidyverse)
+library(psych)
+library(lme4)
+```
+
+```{r}
+view(schoolsmoke)
+glimpse(schoolsmoke)
+```
+
+```{r}
+psych::describe(schoolsmoke, fast = TRUE)
+```
+#scale score and Cronbach's Alpha
+```{r}
+peer_items <- schoolsmoke %>%
+  dplyr::select(., peer1, peer2, peer3, peer4, peer5)
+
+alpha(peer_items)
+```
+# Alpha is very low at below 0.1. I would not incorporate this measure into our analysis going forward. Because it told me that 
+Some items were negatively correlated with the total scale and probably should be reversed, I decided to follow their advice. I ran the function again with the 'check.keys=TRUE' option, but the Alpha is still very low. 
+
+```{r}
+alpha(peer_items, check.keys=TRUE)
+```
+
+#I wasn't sure if I should do the scale score since the Alpha was so low, but I decided to try to see what would happen
+```{r}
+my.keys.list <- list(peer = c("peer1", "peer2", "peer3", "peer4", "peer5"))
+
+my.scales <- scoreItems(my.keys.list, schoolsmoke, impute = "none")
+```
+
+```{r}
+print(my.scales, short = FALSE)
+```
+#It still looks like the Alpha is poor and I would not incorporate this measure
+
+
+#Null Model
+```{r}
+models <- list()
+model.0 <- lmer(thk ~ (1|school), REML = FALSE, data = schoolsmoke)
+summary(model.0)
+```
+#Fixed effect: 2.6 is the mean thk (tobacco and health knowledge) score post-intervention after adjusting for the clustering of students in schools. This has a significant p value of less than 0.001
+
+#Calculate ICC
+```{r}
+null.ICC <- 0.09438/(0.09438 + 1.16219)
+null.ICC
+```
+#Likelihood Ratio Test
+```{r}
+lmerTest::rand(model.0)
+```
+#Our ICC is 0.075, which means 7.5% of the variance is between schools. We would want to conduct MLM. The p value for the likelihood ratio test is significant so it is important to include the random intercept in our model. 
+
+#Adding Level One Covariate
+```{r}
+model.1 <- lmer(thk ~ prethk + (1|school), REML = FALSE, data = schoolsmoke)
+summary(model.1)
+```
+#The estimate for prethk is 0.218, and the p value is statistically significant. So an increase of 1 unit on the scale for prethk would result in an increase of 0.218 on the thk score post-intervention. The level 1 and 2 variances went down slightly - from 0.094 to 0.075 for the school level, and 1.16 to 1.09 for the individual level. This means that we are explaining previously unexplained variation in our former model. 
+
+#Adding Level Two Covariates
+```{r}
+model.2 <- lmer(thk ~ prethk + cc + gprethk + (1|school), REML = FALSE, data = schoolsmoke)
+summary(model.2)
+```
+#The estimate for prethk is now 0.213, and the p value is statistically significant. So an increase of 1 unit on the scale for prethk would result in an increase of 0.213 on the thk score post-intervention. The estimate for cc, having the social resistance classroom curriculum, is 0.431, and the p value is statistically significant. So having the social resistance classroom curriculum would result in an increase of 0.431 on the thk score post-intervention. The estimate for gprethk, mean school score on prethk, is 0.418, and the p value is statistically significant. So an increase of 1 unit on the scale for the school's mean prethk would result in an increase of 0.418 on the thk score post-intervention. This shows that a higher schools' mean on the pretest has more of an effect than a higher individual's pretest score.  
+#The random variance at the school level is much smaller at 0.017, so we are explaining more of the previously unexplained variance by including school level factors such as curriculum and school pretest average. The random variance at the individual level stays the same though at 1.093
+
+#Putting Results in Table
+```{r}
+library(modelsummary)
+library(broom.mixed)
+```
+```{r}
+models <- list(model.0, model.1, model.2)
+modelsummary(models)
+```
+
+```{r}
+library(kableExtra)
+modelsblack <- list(model.0, model.1, model.2)
+black <- modelsummary(modelsblack, output = 'kableExtra') %>%
+  row_spec(1:14, color = 'black')
+black
+```

@@ -1,0 +1,171 @@
+---
+title: 'Multilevel Modeling, Week 4: Conditional Random Intercept Models'
+author: "Dr. Broda"
+output: html_notebook
+---
+
+This week, we are going to use data from Gavin and Hofmann (2002), a study on organizational climate and attitudes published in Leadership Quarterly. Here, we have individuals soldiers nested within companies. This is the same dataset that Garson uses in Chapter 6, so you can recreate his analysis.
+
+# Load Some Packages to Help with the Analysis and Data Management:
+```{r, print=FALSE}
+library(tidyverse)
+library(psych)
+library(lme4)
+```
+
+# Load and Explore the Data
+```{r}
+
+lq2002 <- read_csv("lq2002.csv")
+glimpse(lq2002)
+
+```
+
+Remember our old friend `describe` from the `psych` package a few weeks ago? This is a great way to get a detailed summary of all the variables in a dataset.
+
+```{r}
+psych::describe(lq2002, 
+                fast = TRUE)
+```
+
+# Calculing Scale Scores and Cronbach's Alpha
+
+This week, we are going to get a crash course in how to calculate reliability using Cronbach's alpha. The `alpha` function in the `psych` package  is a quick and easy way to calculate alpha:
+
+```{r}
+hostile_items <- lq2002 %>% 
+  select(., HOSTIL01,
+         HOSTIL02,
+         HOSTIL03,
+         HOSTIL04,
+         HOSTIL05)
+
+alpha(hostile_items)
+```
+
+Now, we can create a new variable, `hostile`, that is constructed by taking the mean of our 5 `hostile` items. 
+
+```{r}
+my.keys.list <- list(hostile = c("HOSTIL01","HOSTIL02","HOSTIL03", "HOSTIL04","HOSTIL05"))
+                     
+my.scales <- scoreItems(my.keys.list, lq2002, impute = "none")
+```
+
+# Scale reliability estimates, etc. for Likert-type scales
+```{r}
+print(my.scales, short = FALSE)
+```
+
+# Save Scored Scales as New Variables
+```{r}
+my.scores <- as_tibble(my.scales$scores)
+```
+
+# Attach New Variable to Old Data Set (LQ2002)
+```{r}
+lq2002.1 <- bind_cols(lq2002, my.scores)
+
+glimpse(lq2002.1)
+```
+
+# Visualizing the Key Variables
+Let's take a look at some of the key variables for our analysis. We have three variables, all which are scale scores constructed just like we did for the example above.
+
+```{r}
+hist(lq2002$HOSTILE, 
+     main = "Distribution of Hostility Scores",
+     sub = "N = 2,042 U.S. Army active duty soliders. Data from Gavin and Hofmann (2002).",
+     xlab = "Scaled Hostility Score")
+```
+
+```{r}
+hist(lq2002$TSIG, 
+     main = "Distribution of Task Significance Scores",
+     sub = "N = 2,042 U.S. Army active duty soliders. Data from Gavin and Hofmann (2002).",
+     xlab = "Scaled Task Significance Score")
+```
+
+```{r}
+hist(lq2002$LEAD, 
+     main = "Distribution of Leadership Climate Scores",
+     sub = "N = 2,042 U.S. Army active duty soliders. Data from Gavin and Hofmann (2002).",
+     xlab = "Scaled Leadership Climate Score")
+```
+
+# Running the Multilevel Models
+
+## Step One: The Null Model
+
+```{r}
+models <- list()
+model.0 <- lmer(HOSTILE ~ (1|COMPID), REML = FALSE, data = lq2002.1)
+summary(model.0)
+```
+
+### Post-Estimation Task: Calculate ICC
+
+Here's a quick and easy way to get our friend the ICC!
+```{r}
+
+null.ICC <- 0.05765/(0.05765 + 1.01668)
+null.ICC
+
+```
+
+### Using `lmerTest` to Evaluate Random Effects:
+```{r}
+lmerTest::rand(model.0)
+```
+
+## Step Two: Adding a Level One Predictor, `TSIG`
+
+```{r}
+model.1 <- lmer(HOSTILE ~ TSIG + (1|COMPID), REML = FALSE, data = lq2002.1)
+summary(model.1)
+```
+
+## Step Three: Adding an Additional Level One Predictor, `LEAD`
+```{r}
+model.2 <- lmer(HOSTILE ~ TSIG + LEAD + (1|COMPID), REML = FALSE, data = lq2002.1)
+summary(model.2)
+```
+
+## Step Four: Testing the Interaction of `LEAD` and `TSIG`
+```{r}
+model.3 <- lmer(HOSTILE ~ TSIG + LEAD + TSIG:LEAD + (1|COMPID), REML = FALSE, data = lq2002.1)
+summary(model.3)
+```
+
+
+## Step Five: Adding a Level Two Predictor, `GTSIG`
+```{r}
+model.4 <- lmer(HOSTILE ~ TSIG + LEAD + GTSIG + (1|COMPID), REML = FALSE, data = lq2002.1)
+summary(model.4)
+```
+
+## Step Six: Adding a 2nd Level Two Predictor, `GLEAD`
+```{r}
+model.5 <- lmer(HOSTILE ~ TSIG + LEAD + GTSIG + GLEAD + (1|COMPID), REML = FALSE, data = lq2002.1)
+summary(model.5)
+```
+
+# Should We Include That Interaction? Comparing `model.2` with `model.3`:
+```{r}
+anova(model.2, model.3)
+```
+
+# Using the `modelsummary` and `broom.mixed` Packages to Organize Your Results:
+```{r}
+library(modelsummary)
+library(broom.mixed)
+
+models <- list(model.0, model.1, model.2, model.3, model.4, model.5)
+modelsummary(models)
+```
+
+# HTML Version That You Can Open in Word:
+```{r}
+modelsummary(models, output = 'msum.html', title = 'MLM Estimates')
+
+```
+
